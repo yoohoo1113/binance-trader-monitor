@@ -261,42 +261,49 @@ class BinanceTopTraderScanner:
             return []
     
     def get_top_volume_symbols(self, limit: int = 200) -> List[Dict]:
-        """거래량 상위 심볼 조회"""
-        try:
-            active_symbols = self.get_active_futures_symbols()
-            if not active_symbols:
-                return []
-            
-            print(f"📊 거래량 상위 {limit}개 심볼 조회 중...")
-            
-            url = f"{self.base_url}/fapi/v1/ticker/24hr"
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            active_set = set(active_symbols)
-            valid_pairs = []
-            
-            for item in data:
-                if (item['symbol'] in active_set and 
-                    float(item['quoteVolume']) > 5_000_000):
-                    valid_pairs.append(item)
-            
-            sorted_pairs = sorted(
-                valid_pairs, 
-                key=lambda x: float(x['quoteVolume']), 
-                reverse=True
-            )[:limit]
-            
-            print(f"✅ 유효한 선물 심볼 {len(sorted_pairs)}개 조회 완료")
-            return sorted_pairs
-            
-        except Exception as e:
-            print(f"❌ 거래량 데이터 조회 실패: {e}")
-            if self.discord:
-                self.discord.send_error_notification(f"거래량 데이터 조회 실패: {str(e)}")
-            return []
+        """거래량 상위 심볼 조회 (재시도 로직 포함)"""
+        for attempt in range(3):  # 3번 재시도
+            try:
+                active_symbols = self.get_active_futures_symbols()
+                if not active_symbols:
+                    return []
+                
+                print(f"📊 거래량 상위 {limit}개 심볼 조회 중... (시도 {attempt+1}/3)")
+                
+                url = f"{self.base_url}/fapi/v1/ticker/24hr"
+                response = self.session.get(url, timeout=15)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                active_set = set(active_symbols)
+                valid_pairs = []
+                
+                for item in data:
+                    if (item['symbol'] in active_set and 
+                        float(item['quoteVolume']) > 5_000_000):
+                        valid_pairs.append(item)
+                
+                sorted_pairs = sorted(
+                    valid_pairs, 
+                    key=lambda x: float(x['quoteVolume']), 
+                    reverse=True
+                )[:limit]
+                
+                print(f"✅ 유효한 선물 심볼 {len(sorted_pairs)}개 조회 완료")
+                return sorted_pairs
+                
+            except Exception as e:
+                print(f"❌ 시도 {attempt+1} 실패: {e}")
+                if attempt == 2:  # 마지막 시도
+                    print(f"❌ 거래량 데이터 조회 최종 실패: {e}")
+                    if self.discord:
+                        self.discord.send_error_notification(f"거래량 데이터 조회 실패: {str(e)}")
+                    return []
+                print(f"⏰ 3초 후 재시도...")
+                time.sleep(3)
+        
+        return []
     
     def get_trader_data(self, symbol: str) -> Optional[Dict]:
         """탑트레이더 데이터 조회"""
