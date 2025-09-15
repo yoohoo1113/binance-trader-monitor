@@ -536,6 +536,24 @@ class BinanceTopTraderMonitor:
 def main():
     """메인 함수 - GitHub Actions 실행용"""
     try:
+        print("🎯 바이낸스 탑트레이더 모니터링 시작")
+        print(f"현재 시간: {datetime.now()}")
+        
+        # 환경변수 확인
+        webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+        min_volume = os.getenv('MIN_VOLUME_USD', '5000000')
+        symbols_limit = os.getenv('SYMBOLS_LIMIT', '200')
+        
+        print(f"환경변수 확인:")
+        print(f"- DISCORD_WEBHOOK_URL: {'설정됨' if webhook_url else '설정되지 않음'}")
+        print(f"- MIN_VOLUME_USD: {min_volume}")
+        print(f"- SYMBOLS_LIMIT: {symbols_limit}")
+        
+        if not webhook_url:
+            print("❌ DISCORD_WEBHOOK_URL이 설정되지 않았습니다.")
+            print("GitHub Secrets에서 DISCORD_WEBHOOK_URL을 설정해주세요.")
+            exit(1)
+        
         monitor = BinanceTopTraderMonitor()
         success = monitor.run_monitoring_cycle()
         
@@ -546,8 +564,15 @@ def main():
             print("\n❌ 모니터링이 실패했습니다!")
             exit(1)
             
+    except ImportError as e:
+        print(f"\n💥 모듈 import 오류: {e}")
+        print("requirements.txt의 패키지가 올바르게 설치되었는지 확인하세요.")
+        exit(1)
     except Exception as e:
         print(f"\n💥 예상치 못한 오류: {e}")
+        import traceback
+        print("전체 오류 스택:")
+        traceback.print_exc()
         exit(1)
 
 if __name__ == "__main__":
