@@ -602,81 +602,9 @@ class BinanceTopTraderScanner:
         
         self.display_scan_results(rankings, scan_time, len(df_results))
         print(f"\n✅ 스캔 완료! 총 {len(df_results)}개 심볼 분석")
-    
-    def periodic_scan_mode(self, interval_minutes: int):
-        """주기적 스캔 모드"""
-        self.running = True
-        scan_count = 0
-        
-        mode_name = f"{interval_minutes}분 주기 스캔"
-        
-        print(f"🔄 {mode_name} 시작")
-        print("📝 Ctrl+C로 중지 가능")
-        print("=" * 60)
-        
-        # 시작 알림
-        if self.discord:
-            self.discord.send_start_notification(mode_name)
-        
-        while self.running:
-            try:
-                scan_count += 1
-                scan_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                print(f"🔄 주기 스캔 #{scan_count} - 매 {interval_minutes}분 ({scan_time})")
-                print("=" * 60)
-                print("📝 Ctrl+C로 중지 가능\n")
-                
-                # 스캔 실행
-                top_symbols = self.get_top_volume_symbols(200)
-                if not top_symbols:
-                    error_msg = "심볼 조회 실패, 재시도 대기 중..."
-                    print(f"❌ {error_msg}")
-                    if self.discord:
-                        self.discord.send_error_notification(error_msg)
-                    self._wait_with_interrupt(interval_minutes * 60)
-                    continue
-                
-                df_results = self.scan_top_traders(top_symbols, show_progress=False)
-                if df_results.empty:
-                    error_msg = "스캔 실패, 재시도 대기 중..."
-                    print(f"❌ {error_msg}")
-                    if self.discord:
-                        self.discord.send_error_notification(error_msg)
-                    self._wait_with_interrupt(interval_minutes * 60)
-                    continue
-                
-                rankings = self.get_top_rankings(df_results, 5)
-                scan_info = f"#{scan_count} ({scan_time})"
-                self.display_scan_results(rankings, scan_info, len(df_results))
-                
-                print(f"\n✅ 스캔 #{scan_count} 완료! ({len(df_results)}개 심볼)")
-                print(f"⏰ {interval_minutes}분 후 다음 스캔...")
-                
-                # 대기 (중단 가능)
-                self._wait_with_interrupt(interval_minutes * 60)
-                
-            except KeyboardInterrupt:
-                self.running = False
-                print("\n\n🛑 스캔이 중지되었습니다.")
-                break
-            except Exception as e:
-                error_msg = f"스캔 오류: {str(e)}"
-                print(f"\n❌ {error_msg}")
-                if self.discord:
-                    self.discord.send_error_notification(error_msg)
-                print(f"⏰ {interval_minutes}분 후 재시도...")
-                self._wait_with_interrupt(interval_minutes * 60)
-    
-    def _wait_with_interrupt(self, seconds: int):
-        """중단 가능한 대기"""
-        for _ in range(seconds):
-            if not self.running:
-                break
-            time.sleep(1)
 
 def main():
-    """메인 함수 - GitHub Actions용 1회 스캔"""
+    """메인 함수 - GitHub Actions용 1회 스캔 (30분마다 스케줄러가 실행)"""
     # 환경변수에서 디스코드 웹훅 URL 가져오기
     DISCORD_WEBHOOK = os.getenv('DISCORD_WEBHOOK')
     
@@ -687,7 +615,7 @@ def main():
     scanner = BinanceTopTraderScanner(discord_webhook=DISCORD_WEBHOOK)
     
     try:
-        print("🎯 GitHub Actions - 탑트레이더 1회 스캔 시작")
+        print("🎯 GitHub Actions - 30분 스케줄 스캔 실행")
         print("=" * 60)
         scanner.single_scan_mode()
         print("\n✅ GitHub Actions 스캔 완료!")
