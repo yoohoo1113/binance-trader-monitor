@@ -221,7 +221,12 @@ class BinanceTopTraderScanner:
         self.base_url = "https://fapi.binance.com"
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
         })
         self.running = False
         
@@ -236,29 +241,32 @@ class BinanceTopTraderScanner:
         os.system('clear' if os.name == 'posix' else 'cls')
     
     def get_active_futures_symbols(self) -> List[str]:
-        """활성 선물 심볼 조회"""
-        try:
-            print("📋 바이낸스 선물시장 활성 심볼 조회 중...")
+        """활성 선물 심볼 조회 (재시도 포함)"""
+        url = f"{self.base_url}/fapi/v1/exchangeInfo"
+        for attempt in range(3):  # 최대 3번 재시도
+            try:
+                print(f"📋 활성 심볼 조회 시도 {attempt+1}/3 ...")
+                response = self.session.get(url, timeout=15)
+                print(f"📡 Status: {response.status_code}, URL: {url}")
+                response.raise_for_status()
+                
+                data = response.json()
+                active_symbols = [
+                    s["symbol"] for s in data["symbols"]
+                    if (s["status"] == "TRADING"
+                        and s["symbol"].endswith("USDT")
+                        and s["contractType"] == "PERPETUAL")
+                ]
+                
+                print(f"✅ 활성 영구선물 심볼 {len(active_symbols)}개 조회 완료")
+                return active_symbols
             
-            url = f"{self.base_url}/fapi/v1/exchangeInfo"
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            active_symbols = []
-            for symbol_info in data['symbols']:
-                if (symbol_info['status'] == 'TRADING' and 
-                    symbol_info['symbol'].endswith('USDT') and
-                    symbol_info['contractType'] == 'PERPETUAL'):
-                    active_symbols.append(symbol_info['symbol'])
-            
-            print(f"✅ 활성 영구선물 심볼 {len(active_symbols)}개 조회 완료")
-            return active_symbols
-            
-        except Exception as e:
-            print(f"❌ 활성 심볼 조회 실패: {e}")
-            return []
+            except Exception as e:
+                print(f"❌ 활성 심볼 조회 실패 (시도 {attempt+1}/3): {e}")
+                time.sleep(3)  # 재시도 대기
+        
+        # 3번 모두 실패 시 빈 리스트 반환
+        return []
     
     def get_top_volume_symbols(self, limit: int = 200) -> List[Dict]:
         """거래량 상위 심볼 조회 (재시도 로직 포함)"""
