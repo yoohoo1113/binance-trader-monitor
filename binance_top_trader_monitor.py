@@ -676,22 +676,25 @@ class BinanceTopTraderScanner:
             time.sleep(1)
 
 def main():
-    """메인 함수 - GitHub Actions용 30분 주기 스캔"""
-    # 디스코드 웹훅 URL 설정
-    DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1411251814895976529/VmTspLmu4tkkDzAcXTgYGBIb6obL5C8aC-wUIBsETCXHIEhORzFKvygyE-HoaYeVzIqp"
+    """메인 함수 - GitHub Actions용 1회 스캔"""
+    # 환경변수에서 디스코드 웹훅 URL 가져오기
+    DISCORD_WEBHOOK = os.getenv('DISCORD_WEBHOOK')
+    
+    if not DISCORD_WEBHOOK:
+        print("❌ DISCORD_WEBHOOK 환경변수가 설정되지 않았습니다.")
+        return
     
     scanner = BinanceTopTraderScanner(discord_webhook=DISCORD_WEBHOOK)
     
     try:
-        print("🎯 GitHub Actions - 30분 주기 탑트레이더 모니터 시작")
+        print("🎯 GitHub Actions - 탑트레이더 1회 스캔 시작")
         print("=" * 60)
-        scanner.periodic_scan_mode(30)
-    except KeyboardInterrupt:
-        print("\n\n🛑 프로그램을 종료합니다.")
+        scanner.single_scan_mode()
+        print("\n✅ GitHub Actions 스캔 완료!")
     except Exception as e:
         print(f"\n❌ 오류 발생: {e}")
         if scanner.discord:
-            scanner.discord.send_error_notification(f"프로그램 오류: {str(e)}")
+            scanner.discord.send_error_notification(f"GitHub Actions 스캔 오류: {str(e)}")
 
 if __name__ == "__main__":
     main()
