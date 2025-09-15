@@ -1,4 +1,4 @@
-name: 바이낸스 탑트레이더 모니터
+name: 바이낸스 탑트레이더 모니터 (다중 지역)
 
 on:
   schedule:
@@ -10,7 +10,18 @@ on:
 
 jobs:
   scan-traders:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04, ubuntu-22.04]
+        api_endpoint: [
+          'https://fapi.binance.com',
+          'https://fapi1.binance.com',
+          'https://fapi2.binance.com',
+          'https://fapi3.binance.com'
+        ]
+      fail-fast: false  # 하나 실패해도 다른 조합 계속 시도
+      max-parallel: 2   # 동시 실행 제한
     
     steps:
     - name: 체크아웃
@@ -26,7 +37,32 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    - name: 네트워크 정보 확인
+      run: |
+        echo "=== 네트워크 정보 ==="
+        curl -s https://ipinfo.io/json
+        echo ""
+        echo "=== DNS 정보 ==="
+        nslookup fapi.binance.com
+        echo ""
+        echo "=== 연결 테스트 ==="
+        curl -I ${{ matrix.api_endpoint }}/fapi/v1/ping --connect-timeout 10 || echo "연결 실패"
+    
     - name: 탑트레이더 스캔 실행
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        BINANCE_API_BASE: ${{ matrix.api_endpoint }}
+        RUNNER_OS: ${{ matrix.os }}
       run: python binance_top_trader_monitor.py
+      continue-on-error: true
+    
+    - name: 결과 알림
+      if: always()
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ 성공: ${{ matrix.os }} + ${{ matrix.api_endpoint }}"
+        else
+          echo "❌ 실패: ${{ matrix.os }} + ${{ matrix.api_endpoint }}"
+        fi
